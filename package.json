@@ -1,0 +1,23 @@
+{
+  "name": "food-rescue-simple",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "cd client && npm install",
+    "dev": "concurrently \"node server.js\" \"cd client && npm run dev\"",
+    "build": "cd client && npm run build",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@hello-pangea/dnd": "^18.0.1",
+    "concurrently": "^9.0.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7",
+    "twilio": "^5.8.0"
+  }
+}

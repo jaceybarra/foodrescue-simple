@@ -1,0 +1,15 @@
+
+/* Drawer styles */
+.drawer-backdrop{
+  position:fixed; inset:0; background:rgba(0,0,0,.45);
+  display:flex; justify-content:flex-end; z-index:50;
+}
+.drawer{
+  width:min(520px, 100%); height:100%; background:var(--panel);
+  border-left:1px solid var(--line); box-shadow:var(--shadow); display:flex; flex-direction:column;
+}
+.drawer-header{ display:flex; align-items:center; justify-content:space-between; padding:14px; border-bottom:1px solid var(--line) }
+.drawer-title{ font-weight:800 }
+.drawer-body{ padding:14px; overflow:auto; display:flex; flex-direction:column; gap:14px }
+.drawer-section{ padding:12px; border:1px solid var(--line); border-radius:12px; background:var(--elev) }
+.drawer-footer{ display:flex; flex-wrap:wrap; gap:8px; padding:12px; border-top:1px solid var(--line) }

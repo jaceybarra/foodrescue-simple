@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FoodRescueSimple</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root { --bg:#0f172a; --card:#111827; --muted:#94a3b8; --accent:#22c55e; --white:#f8fafc; --line:#1f2937; }
+      * { box-sizing: border-box; }
+      body { margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: var(--white); }
+      .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+      .nav { display:flex; gap:12px; align-items:center; justify-content: space-between; margin-bottom: 16px; }
+      .nav .title { font-weight:700; letter-spacing:.2px; }
+      .tabs { display:flex; gap:8px; }
+      .tab { padding:8px 12px; background:#0b1220; border:1px solid var(--line); border-radius:10px; cursor:pointer; }
+      .tab.active { border-color: var(--accent); }
+      .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .card { background: var(--card); border:1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: 0 4px 30px rgba(0,0,0,.25); }
+      .card h3 { margin: 0 0 8px 0; }
+      input, select, button, textarea { width:100%; padding:12px; border-radius: 12px; border:1px solid var(--line); background:#0b1220; color:var(--white); }
+      label { font-size: 12px; color: var(--muted); margin-bottom: 6px; display:block; }
+      button.primary { background: var(--accent); border-color: #16a34a; color: #06210f; font-weight:700; cursor:pointer; }
+      .list { display:flex; flex-direction:column; gap:12px; }
+      .row { display:flex; justify-content:space-between; align-items:center; gap:12px; background:#0b1220; padding:12px; border-radius:12px; border:1px solid var(--line); }
+      .status { font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+      .status.claimed{ color:#fbbf24; border-color:#f59e0b; }
+      .status.en_route{ color:#60a5fa; border-color:#3b82f6; }
+      .status.picked_up{ color:#34d399; border-color:#10b981; }
+      .status.delivered{ color:#a7f3d0; border-color:#34d399; }
+      .muted { color: var(--muted); font-size: 12px; }
+      .actions { display:flex; gap:8px; }
+      .split { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      @media (max-width: 900px) { .grid, .split { grid-template-columns: 1fr; } }
+      a.btn { text-decoration:none; color:inherit; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/main.jsx"></script>
+  </body>
+</html>
