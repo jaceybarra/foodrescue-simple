@@ -11,30 +11,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
-app.use(express.json());
-
-// ---------- Realtime via SSE ----------
-const sseClients = new Set();
-
-app.get('/api/stream', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders?.();
-  res.write(`event: ping\ndata: "connected"\n\n`);
-  sseClients.add(res);
-  req.on('close', () => sseClients.delete(res));
-});
-
-function broadcast(evtObj) {
-  const payload = `data: ${JSON.stringify(evtObj)}\n\n`;
-  for (const client of sseClients) {
-    try { client.write(payload); } catch { /* drop dead client */ }
-  }
-}
-
-// ---------- Twilio (optional; will no-op if creds missing) ----------
+// Twilio (optional: if env is missing, SMS is skipped)
 const twilioSid = process.env.TWILIO_ACCOUNT_SID || '';
 const twilioAuth = process.env.TWILIO_AUTH_TOKEN || '';
 const twilioFrom = process.env.TWILIO_FROM_NUMBER || '';
@@ -49,28 +26,35 @@ async function sendSMS(to, body) {
   catch (e) { console.error('SMS error', e?.message || e); }
 }
 
-// ---------- Static uploads ----------
-const uploadsDir = path.join(process.cwd(), 'uploads');
+app.use(cors());
+app.use(express.json());
+
+// Uploads: env-configurable so we can mount a Railway/Render volume
+const uploadsDir = process.env.UPLOADS_DIR || path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir));
 
-// ---------- File upload config ----------
+// Multer storage to the same uploadsDir
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
+  destination: (req, file, cb) => cb(null, uploadsDir),
   filename: (req, file, cb) => {
     const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file?.originalname || '.jpg'));
-  },
+    const ext = file?.originalname ? path.extname(file.originalname) : '.jpg';
+    cb(null, unique + ext);
+  }
 });
 const upload = multer({ storage });
 
-// ---------- API ----------
+// -------- API ROUTES --------
+
+// Health
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
-// Create job
+// Create job (sends SMS to active drivers)
 app.post('/api/jobs', async (req, res) => {
   const { title, location, food_type, expires_at, contact_name, contact_phone } = req.body || {};
   if (!title || !location) return res.status(400).json({ error: 'title and location are required' });
+
   const db = await getDb();
   const result = await db.run(
     `INSERT INTO jobs (title, location, food_type, expires_at, contact_name, contact_phone)
@@ -79,7 +63,7 @@ app.post('/api/jobs', async (req, res) => {
   );
   const job = await db.get(`SELECT * FROM jobs WHERE id = ?`, [result.lastID]);
 
-  // Notify drivers (optional)
+  // Notify active drivers via SMS (best-effort)
   try {
     const drivers = await db.all(`SELECT phone FROM drivers WHERE is_active = 1 AND phone IS NOT NULL`);
     if (drivers?.length) {
@@ -90,11 +74,10 @@ app.post('/api/jobs', async (req, res) => {
     console.error('Notify drivers failed', e?.message || e);
   }
 
-  broadcast({ type: 'jobs_changed' });
   res.json(job);
 });
 
-// List jobs
+// List jobs (optional ?status=)
 app.get('/api/jobs', async (req, res) => {
   const { status } = req.query;
   const db = await getDb();
@@ -104,7 +87,7 @@ app.get('/api/jobs', async (req, res) => {
   res.json(rows);
 });
 
-// Claim
+// Claim job
 app.post('/api/jobs/:id/claim', async (req, res) => {
   const { id } = req.params;
   const { driver_name } = req.body || {};
@@ -113,9 +96,10 @@ app.post('/api/jobs/:id/claim', async (req, res) => {
   const existing = await db.get(`SELECT * FROM jobs WHERE id = ?`, [id]);
   if (!existing) return res.status(404).json({ error: 'job not found' });
   if (existing.status !== 'open') return res.status(400).json({ error: 'job is not open' });
-  await db.run(`UPDATE jobs SET status = 'claimed', claimed_by = ?, updated_at = datetime('now') WHERE id = ?`, [driver_name, id]);
+
+  await db.run(`UPDATE jobs SET status = 'claimed', claimed_by = ?, updated_at = datetime('now') WHERE id = ?`,
+    [driver_name, id]);
   const updated = await db.get(`SELECT * FROM jobs WHERE id = ?`, [id]);
-  broadcast({ type: 'jobs_changed' });
   res.json(updated);
 });
 
@@ -125,30 +109,32 @@ app.post('/api/jobs/:id/status', async (req, res) => {
   const { status } = req.body || {};
   const allowed = ['open', 'claimed', 'en_route', 'picked_up', 'delivered', 'cancelled'];
   if (!allowed.includes(status)) return res.status(400).json({ error: 'invalid status' });
+
   const db = await getDb();
   const existing = await db.get(`SELECT * FROM jobs WHERE id = ?`, [id]);
   if (!existing) return res.status(404).json({ error: 'job not found' });
+
   await db.run(`UPDATE jobs SET status = ?, updated_at = datetime('now') WHERE id = ?`, [status, id]);
   const updated = await db.get(`SELECT * FROM jobs WHERE id = ?`, [id]);
-  broadcast({ type: 'jobs_changed' });
   res.json(updated);
 });
 
-// Upload photo
+// Upload pickup photo
 app.post('/api/jobs/:id/photo', upload.single('photo'), async (req, res) => {
   const { id } = req.params;
   if (!req.file) return res.status(400).json({ error: 'photo file required' });
   const relPath = '/uploads/' + req.file.filename;
+
   const db = await getDb();
   const existing = await db.get(`SELECT * FROM jobs WHERE id = ?`, [id]);
   if (!existing) return res.status(404).json({ error: 'job not found' });
+
   await db.run(`UPDATE jobs SET photo_path = ?, updated_at = datetime('now') WHERE id = ?`, [relPath, id]);
   const updated = await db.get(`SELECT * FROM jobs WHERE id = ?`, [id]);
-  broadcast({ type: 'jobs_changed' });
   res.json(updated);
 });
 
-// Drivers
+// Drivers (opt-in for SMS)
 app.get('/api/drivers', async (req, res) => {
   const db = await getDb();
   const rows = await db.all(`SELECT id, name, phone, is_active FROM drivers ORDER BY created_at DESC`);
@@ -175,7 +161,7 @@ app.post('/api/drivers/:id/toggle', async (req, res) => {
   res.json(updated);
 });
 
-// Serve built frontend (prod)
+// Serve built frontend in production
 app.use(express.static('client/dist'));
 app.get('*', (req, res) => {
   const indexPath = path.join(process.cwd(), 'client', 'dist', 'index.html');
